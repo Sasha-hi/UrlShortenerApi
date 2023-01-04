@@ -1,4 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using UrlShortenerApi.Models;
+using UrlShortenerApi.Services.Interfaces;
 
 namespace UrlShortenerApi.Controllers;
 
@@ -6,6 +8,15 @@ namespace UrlShortenerApi.Controllers;
 [Route("api")]
 public class UrlShortenerController : ControllerBase
 {
+    private readonly ILogger<UrlShortenerController> _logger;
+    private readonly IShortIdGeneratorService _shortIdGeneratorService;
+
+    public UrlShortenerController(ILogger<UrlShortenerController> logger, IShortIdGeneratorService shortIdGeneratorService)
+    {
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _shortIdGeneratorService = shortIdGeneratorService ?? throw new ArgumentNullException(nameof(shortIdGeneratorService));
+    }
+
     [HttpGet("")]
     public string Index()
     {
@@ -15,23 +26,24 @@ public class UrlShortenerController : ControllerBase
     [HttpGet("{key}")]
     [ProducesResponseType(StatusCodes.Status302Found)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public IActionResult Expand(string key)
     {
-        if (string.IsNullOrWhiteSpace(key))
-            return BadRequest($"Argument {nameof(key)} is null or empty or whitespace");
-
         return Redirect("https://google.com");
     }
 
     [HttpPost]
     [ProducesResponseType(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public ActionResult<string> Shorten(string sourceUrl)
+    public async Task<ActionResult<ShortenResponseDto>> Shorten(ShortenRequestDto requestDto)
     {
-        if (string.IsNullOrWhiteSpace(sourceUrl))
-            return BadRequest($"Argument {nameof(sourceUrl)} is null or empty or whitespace");
-
-        var routeValues = new { key = "key" };
-        return CreatedAtAction(nameof(Expand), routeValues, "result url");
+        var shortId = await _shortIdGeneratorService.GenerateAsync();
+        
+        var responseDto = new ShortenResponseDto
+        {
+            ShortUrl = shortId
+        };
+        var routeValues = new { key = shortId };
+        return CreatedAtAction(nameof(Expand), routeValues, responseDto);
     }
 }
